@@ -65,7 +65,7 @@ Go to <https://aws.amazon.com/free/> and sign-up with free account.
 
 Once done, go to "EC2".
 
-![AWD-EC2.png](AWD-EC2.png)
+![AWS-EC2.png](AWS-EC2.png)
 
 Then in the dashboard, select "Launch Instance"
 
