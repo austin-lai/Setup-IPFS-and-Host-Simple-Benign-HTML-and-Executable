@@ -65,35 +65,39 @@ Go to <https://aws.amazon.com/free/> and sign-up with free account.
 
 Once done, go to "EC2".
 
-![AWS-EC2.png](AWS-EC2.png)
+![AWS-EC2.png](https://github.com/austin-lai/Setup-IPFS-and-Host-Simple-Benign-HTML-and-Executable/blob/master/AWS-EC2.png)
 
 Then in the dashboard, select "Launch Instance"
 
-![AWS-EC2-LaunchInstance.png](AWS-EC2-LaunchInstance.png)
+![AWS-EC2-LaunchInstance.png](https://github.com/austin-lai/Setup-IPFS-and-Host-Simple-Benign-HTML-and-Executable/blob/master/AWS-EC2-LaunchInstance.png)
 
-Next, carefully check if you select "Free-Tier" Ubuntu Server OS.
+Next, enter naming for the instance.
 
-![AWS-EC2-LaunchInstance-SelectOSImage.png](AWS-EC2-LaunchInstance-SelectOSImage.png)
+![AWS-EC2-LaunchInstance-Naming.png](https://github.com/austin-lai/Setup-IPFS-and-Host-Simple-Benign-HTML-and-Executable/blob/master/AWS-EC2-LaunchInstance-Naming.png)
+
+And carefully check if you select "Free-Tier" Ubuntu Server OS.
+
+![AWS-EC2-LaunchInstance-SelectOSImage.png](https://github.com/austin-lai/Setup-IPFS-and-Host-Simple-Benign-HTML-and-Executable/blob/master/AWS-EC2-LaunchInstance-SelectOSImage.png)
 
 Next, "Generate SSH Key".
 
-![AWS-EC2-LaunchInstance-FreeTier-SSHKey.png](AWS-EC2-LaunchInstance-FreeTier-SSHKey.png)
+![AWS-EC2-LaunchInstance-FreeTier-SSHKey.png](https://github.com/austin-lai/Setup-IPFS-and-Host-Simple-Benign-HTML-and-Executable/blob/master/AWS-EC2-LaunchInstance-FreeTier-SSHKey.png)
 
 Then, go to "Network Setting".
 
 Setup Security Group Rule to allow SSH access from your public IP instead of open-up with "0.0.0.0/0"
 
-![AWS-EC2-LaunchInstance-NetworkSetting.png](AWS-EC2-LaunchInstance-NetworkSetting.png)
+![AWS-EC2-LaunchInstance-NetworkSetting.png](https://github.com/austin-lai/Setup-IPFS-and-Host-Simple-Benign-HTML-and-Executable/blob/master/AWS-EC2-LaunchInstance-NetworkSetting.png)
 
 Then we add 2 new security group rules as below:
 
-![AWS-EC2-LaunchInstance-NetworkSetting-CustomRules.png](AWS-EC2-LaunchInstance-NetworkSetting-CustomRules.png)
+![AWS-EC2-LaunchInstance-NetworkSetting-CustomRules.png](https://github.com/austin-lai/Setup-IPFS-and-Host-Simple-Benign-HTML-and-Executable/blob/master/AWS-EC2-LaunchInstance-NetworkSetting-CustomRules.png)
 
 **Remember to provide informative naming to the rules.**
 
 Before proceed to create the instance, we can add additional volume to the instance since free tier given 30GB for the allowance of storage.
 
-![AWS-EC2-LaunchInstance-Storage.png](AWS-EC2-LaunchInstance-Storage.png)
+![AWS-EC2-LaunchInstance-Storage.png](https://github.com/austin-lai/Setup-IPFS-and-Host-Simple-Benign-HTML-and-Executable/blob/master/AWS-EC2-LaunchInstance-Storage.png)
 
 Now, we are good to go to create the instance with above configuration.
 
@@ -169,7 +173,7 @@ We can opened up IPFS gateway by browse to its address in a browser, <http://ec2
 
 We should be able to view the IPFS default pinning files:
 
-![AWS-EC2-IPFS-Web.png](AWS-EC2-IPFS-Web.png)
+![AWS-EC2-IPFS-Web.png](https://github.com/austin-lai/Setup-IPFS-and-Host-Simple-Benign-HTML-and-Executable/blob/master/AWS-EC2-IPFS-Web.png)
 
 Then, we can try to host multi-page sites from <https://docs.ipfs.tech/how-to/websites-on-ipfs/multipage-website/#multi-page-website>
 
@@ -182,7 +186,7 @@ ipfs add -r .
 
 Once done, we may visit to the site where the HASH-KEY provided when you add files to IPFS.
 
-![ipfs-multi-page-sites.png](ipfs-multi-page-sites.png)
+![ipfs-multi-page-sites.png](https://github.com/austin-lai/Setup-IPFS-and-Host-Simple-Benign-HTML-and-Executable/blob/master/ipfs-multi-page-sites.png)
 
 <br>
 
@@ -212,7 +216,7 @@ The `k51qzi...` is the IPFS installation's key! This is what we can use to point
 
 We should now be able to view it by going to `http://ec2-xx-xxx-xxx-xx.us-xxxx-2.compute.amazonaws.com:8080/ipns/k51qzi....`. Replace `k51qzi...` with the output from the previous step.
 
-![ipns-sites.png](ipns-sites.png)
+![ipns-sites.png](https://github.com/austin-lai/Setup-IPFS-and-Host-Simple-Benign-HTML-and-Executable/blob/master/ipns-sites.png)
 
 **Whenever you make any changes to your project, simply re-add your content to IPFS and publish it to IPNS**
 
