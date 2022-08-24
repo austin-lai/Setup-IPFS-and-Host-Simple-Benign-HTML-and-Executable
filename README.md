@@ -13,10 +13,15 @@
     - [Description or Introduction](#description-or-introduction)
         - [Learn how IPFS works](#learn-how-ipfs-works)
         - [IPFS Setup Environment](#ipfs-setup-environment)
+        - [IPFS Network Port Requirement](#ipfs-network-port-requirement)
     - [Setup IPFS in AWS Environment](#setup-ipfs-in-aws-environment)
         - [Create EC2 Instance in AWS](#create-ec2-instance-in-aws)
         - [Setup IPFS](#setup-ipfs)
             - [Publishing IPNS](#publishing-ipns)
+    - [Additional Information](#additional-information)
+        - [IPFS Garbage Collection](#ipfs-garbage-collection)
+        - [Content of IPFS Hosted Locally is publicly available](#content-of-ipfs-hosted-locally-is-publicly-available)
+        - [Additional Article Reference](#additional-article-reference)
 
 <!-- /TOC -->
 
@@ -54,6 +59,15 @@ IPFS from <https://docs.ipfs.tech/concepts/what-is-ipfs/#decentralization> can b
 For this example, we are going to setup IPFS in AWS environment. If you are familiar with AWS environment, you may skip [Create EC2 Instance in AWS](#create-ec2-instance-in-aws) and refer to [Setup IPFS](#setup-ipfs).
 
 <!-- /Description -->
+
+<br>
+
+### IPFS Network Port Requirement
+
+- 4001-4002 - default libp2p swarm port - should be open to public for all nodes if possible.
+- 5001 - API port - provides write/admin access to the node, shouldn't be exposed at all.
+- 8080 - Gateway + read only API subset - quite safe to expose, but operating public gateway may still be a risk in some ways.
+- 8081 - Websocket transfer. However, this isn't enabled by default.
 
 <br>
 
@@ -219,6 +233,55 @@ We should now be able to view it by going to `http://ec2-xx-xxx-xxx-xx.us-xxxx-2
 ![ipns-sites.png](https://github.com/austin-lai/Setup-IPFS-and-Host-Simple-Benign-HTML-and-Executable/blob/master/ipns-sites.png)
 
 **Whenever you make any changes to your project, simply re-add your content to IPFS and publish it to IPNS**
+
+<br>
+
+## Additional Information
+
+### [IPFS Garbage Collection](https://docs.ipfs.tech/concepts/persistence/#garbage-collection)
+
+Garbage collection is a form of automatic resource management widely used in software development. The garbage collector attempts to reclaim memory occupied by objects that are no longer in use. IPFS uses garbage collection to free disk space on your IPFS node by deleting data that it thinks is no longer needed.
+
+The IPFS garbage collector is configured in the `Datastore` section of the `Kubo` config file. The important settings related to the garbage collector are:
+
+- `StorageGCWatermark`: The percentage of the `StorageMax` value at which a garbage collection will be triggered automatically, if the daemon is running with automatic garbage collection enabled. The default is `90`.
+- `GCPeriod`: Specify how frequently garbage collection should run. Only used if automatic garbage collection is enabled. The default is `1 hour`.
+
+To manually start garbage collection, run `ipfs repo gc`.
+
+To enable automatic garbage collection use `--enable-gc` when starting the IPFS daemon:
+
+```
+ipfs daemon --enable-gc
+```
+
+A nice reference article with regards to IPFS Garbage Collection can be found at <https://blog.logrocket.com/guide-ipfs-garbage-collection/>
+
+### Content of IPFS Hosted Locally is publicly available
+
+Content of IPFS Hosted Locally is publicly available through IPFS Public gateways which you can find from <https://docs.ipfs.tech/concepts/ipfs-gateway/#gateway-providers>.
+
+This process is the same as using any other IPFS gateway -- only the address of the gateway is different.
+
+If you're using the hash of a specific snapshot of content, use the path `https://ipfs.io/ipfs/<your-ipfs-hash>`. If you're using an IPNS hash to get the latest version of some content, use the path `https://ipfs.io/ipns/<your-ipns-hash>`.
+
+Below is the content access from local IPFS gateway:
+
+![ipns-sites.png](https://github.com/austin-lai/Setup-IPFS-and-Host-Simple-Benign-HTML-and-Executable/blob/master/ipns-sites.png)
+
+Below is the content access from public IPFS gateway:
+
+![content-from-public-ipfs.png](https://github.com/austin-lai/Setup-IPFS-and-Host-Simple-Benign-HTML-and-Executable/blob/master/content-from-public-ipfs.png)
+
+Detail article can be found at <https://ipfs.io/ipfs/QmcqCBTktATA1gzLuR5RcbXRZ375uXtpsioY7rSFhzCCZy/classical-web/lessons/public-gateways.html>.
+
+<br>
+
+### Additional Article Reference
+
+<https://blog.ipfs.tech/2022-06-09-practical-explainer-ipfs-gateways-1/>
+
+<https://blog.ipfs.tech/2022-06-30-practical-explainer-ipfs-gateways-2/>
 
 <br />
 
