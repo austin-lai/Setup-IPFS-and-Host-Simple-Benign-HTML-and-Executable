@@ -18,6 +18,15 @@
         - [Create EC2 Instance in AWS](#create-ec2-instance-in-aws)
         - [Setup IPFS](#setup-ipfs)
             - [Publishing IPNS](#publishing-ipns)
+    - [Setup with Terraform IaC](#setup-with-terraform-iac)
+        - [Preparation of Terraform for IPFS on AWS EC2](#preparation-of-terraform-for-ipfs-on-aws-ec2)
+        - [Terraform Project Folder Structure](#terraform-project-folder-structure)
+            - [AWS KEY for Terraform](#aws-key-for-terraform)
+            - [Terraform Code - main.tf](#terraform-code---maintf)
+            - [IPFS Script](#ipfs-script)
+                - [Root version](#root-version)
+                - [Ubuntu user version](#ubuntu-user-version)
+        - [Running Terraform](#running-terraform)
     - [Additional Information](#additional-information)
         - [IPFS Garbage Collection](#ipfs-garbage-collection)
         - [Content of IPFS Hosted Locally is publicly available](#content-of-ipfs-hosted-locally-is-publicly-available)
@@ -233,6 +242,331 @@ We should now be able to view it by going to `http://ec2-xx-xxx-xxx-xx.us-xxxx-2
 ![ipns-sites.png](https://github.com/austin-lai/Setup-IPFS-and-Host-Simple-Benign-HTML-and-Executable/blob/master/ipns-sites.png)
 
 **Whenever you make any changes to your project, simply re-add your content to IPFS and publish it to IPNS**
+
+<br>
+
+## Setup with Terraform IaC
+
+### Preparation of Terraform for IPFS on AWS EC2
+
+Now, we can integrate the IPFS setup on AWS EC2 instance with Terraform IaC.
+
+There are a few things we need prepare before we start.
+
+- Download terraform to your machines, you can find the suitable terraform version from <https://www.terraform.io/downloads>
+    - For windows device, you may also use `choco install terraform`
+- AWS Access Key and AWS Secret Key, you can read more from <https://docs.aws.amazon.com/powershell/latest/userguide/pstools-appendix-sign-up.html>
+- AWS CLI installed, you can read more from <https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html>
+
+<br>
+
+### Terraform Project Folder Structure
+
+First, create a folder for serving as Terraform project which will be used to build terraform code.
+
+The folder will be at least consist below:
+
+![tree-view.png](https://github.com/austin-lai/Setup-IPFS-and-Host-Simple-Benign-HTML-and-Executable/blob/master/tree-view.png)
+
+<br>
+
+#### AWS KEY for Terraform
+
+`aws.key` is where we store the AWS access key and AWS secret access key, that will be used by terraform to connect to AWS and provision AWS EC2 instance.
+
+The `aws.key` format as below:
+
+```text
+[ASSIGN-A-PROFILE-NAME]
+aws_access_key_id = YOUR-AWS-ACCESS-KEY-ID
+aws_secret_access_key = YOUR-AWS-SECRET-ACCESS-KEY
+```
+
+The **Profile Name** can be anything.
+
+#### Terraform Code - main.tf
+
+`main.tf` will be the terraform code, however, if you prefer; you may split the code to multiple file, e.g. `variable.tf`, `profile.tf`, `instance.tf` and etc.
+
+```terraform
+# Setting up Terraform AWS Provider
+terraform {
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 4.16"
+    }
+  }
+  required_version = ">= 1.2.0"
+}
+provider "aws" {
+  region                   = "us-east-1"
+  shared_credentials_files = ["aws.key"]
+}
+
+# When running terraform, it will prompt to you to provide SSH Key Name
+variable "key_name" {}
+
+# When running terraform, it will prompt to you to provide AWS EC2 Name
+variable "tag_name" {}
+
+# Create SSH Public and Private key pair based on the Key Name provided
+resource "aws_key_pair" "ipfs-host" {
+  key_name   = var.key_name
+  public_key = tls_private_key.ipfs-host.public_key_openssh
+}
+resource "tls_private_key" "ipfs-host" {
+  algorithm = "RSA"
+  rsa_bits  = 4096
+}
+resource "local_file" "ipfs-host" {
+  content  = tls_private_key.ipfs-host.private_key_pem
+  filename = "ipfs-host.pem"
+}
+
+# Creating AWS EC2 Instance
+resource "aws_instance" "ipfs-host" {
+  
+  # ami is the AWS EC2 Instance image ID, we are using Ubuntu Server image here
+  ami                    = "ami-052efd3df9dad4825"
+  availability_zone      = "us-east-1d"
+  ebs_optimized          = false
+  instance_type          = "t2.micro"
+  monitoring             = false
+  key_name               = aws_key_pair.ipfs-host.key_name
+  vpc_security_group_ids = ["sg-03210c620abc6f04b"]
+  source_dest_check      = true
+  tags = {
+    Name = var.tag_name
+  }
+
+  # We are adding 30Gb of EBS storage for IPFS
+  ebs_block_device {
+    device_name           = "/dev/sdb"
+    snapshot_id           = ""
+    volume_type           = "gp3"
+    volume_size           = 30
+    delete_on_termination = true
+  }
+
+  # This is the default root storage
+  root_block_device {
+    volume_type           = "gp2"
+    volume_size           = 8
+    delete_on_termination = true
+  }
+
+  # Here we input our script to setup IPFS
+  # BEWARE ! The script will run under root permission !
+  user_data = "${file("root-script.sh")}"
+
+  # You may also use this section to setup IPFS with the script
+  # Uncomment this to use this section
+  # provisioner "file" {
+  #   source      = "ubuntu-script.sh"
+  #   destination = "/tmp/ubuntu-script.sh"
+  # }
+  # provisioner "remote-exec" {
+  #   inline = [
+  #     "sudo chmod +x /tmp/ubuntu-script.sh",
+  #     "sudo /tmp/ubuntu-script.sh"
+  #   ]
+  # }
+
+  # Setup SSH connection to newly created AWS EC2 instance with the SSH Key generated earlier
+  connection {
+    type        = "ssh"
+    user        = "ubuntu"
+    private_key = tls_private_key.ipfs-host.private_key_pem
+    host        = aws_instance.ipfs-host.public_ip
+  }
+}
+```
+
+<br>
+
+#### IPFS Script
+
+<br>
+
+##### Root version
+
+```bash
+#!/bin/bash
+{
+    set -x
+
+    # Download kubo-ipfs into tmp folder
+    # unzip and install
+    # remove leaft-over files after install
+    cd /tmp/
+    wget https://dist.ipfs.tech/kubo/v0.14.0/kubo_v0.14.0_linux-amd64.tar.gz
+    tar xvfz kubo_v0.14.0_linux-amd64.tar.gz
+    rm kubo_v0.14.0_linux-amd64.tar.gz 
+    bash ./kubo/install.sh
+    rm -rf kubo
+    
+    # Setup IPFS Path
+    bash -c 'echo export IPFS_PATH=/data/ipfs >> /etc/profile' 
+    source /etc/profile
+
+    # Setup IPFS Path
+    echo 'export IPFS_PATH=/data/ipfs' >> /home/ubuntu/.bash_profile
+    source /home/ubuntu/.bash_profile
+    
+    # Confirm IPFS Path and ensure ubuntu user home directories with its ownership
+    echo $IPFS_PATH > /tmp/IPFS_PATH.txt
+    chown -R ubuntu:ubuntu /home/ubuntu
+
+    # Create IPFS Data Directory with the define IPFS Path
+    # Set the correct ownership of the IPFS Data Directory
+    mkdir -p $IPFS_PATH
+    chown ubuntu:ubuntu $IPFS_PATH
+
+    # Initial IPFS as server
+    cd $IPFS_PATH
+    ipfs init -p server
+
+    # Configure IPFS Storage Size
+    ipfs config Datastore.StorageMax 8GB
+
+    # Configure IPFS to allow direct access to the instance's gateway
+    ipfs config Addresses.Gateway /ip4/0.0.0.0/tcp/8080
+
+    # Once again, set the correct ownership of the IPFS Data Directory
+    chown -R ubuntu:ubuntu $IPFS_PATH
+
+    # Create IPFS Service
+    echo '[Unit]' | tee /lib/systemd/system/ipfs.service
+    echo 'Description=ipfs daemon' | tee -a /lib/systemd/system/ipfs.service
+    echo 'After=network.target' | tee -a /lib/systemd/system/ipfs.service
+    echo '[Service]' | tee -a /lib/systemd/system/ipfs.service
+    echo 'ExecStart=/usr/local/bin/ipfs daemon --enable-gc' | tee -a /lib/systemd/system/ipfs.service
+    echo 'StandardOutput=journal' | tee -a /lib/systemd/system/ipfs.service
+    echo 'KillSignal=SIGINT' | tee -a /lib/systemd/system/ipfs.service
+    echo 'Restart=always' | tee -a /lib/systemd/system/ipfs.service
+    echo 'User=ubuntu' | tee -a /lib/systemd/system/ipfs.service
+    echo 'Group=ubuntu' | tee -a /lib/systemd/system/ipfs.service
+    echo 'Environment="IPFS_PATH=/data/ipfs"' | tee -a /lib/systemd/system/ipfs.service
+    echo '[Install]' | tee -a /lib/systemd/system/ipfs.service
+    echo 'WantedBy=multi-user.target' | tee -a /lib/systemd/system/ipfs.service
+
+    # Reload system service and enabled boot-start for IPFS
+    systemctl daemon-reload
+    systemctl enable ipfs.service
+    systemctl start ipfs
+    systemctl status ipfs
+
+    # Check if IPFS is running and connected to peers
+    ipfs swarm peers
+    
+    set +x
+
+} 2>&1 | tee $(whoami)-script.log
+```
+
+<br>
+
+##### Ubuntu user version
+
+```bash
+#!/bin/bash
+{
+    set -x
+
+    # Download kubo-ipfs into tmp folder
+    # unzip and install
+    # remove leaft-over files after install
+    cd /tmp/
+    wget https://dist.ipfs.tech/kubo/v0.14.0/kubo_v0.14.0_linux-amd64.tar.gz
+    tar xvfz kubo_v0.14.0_linux-amd64.tar.gz
+    rm kubo_v0.14.0_linux-amd64.tar.gz 
+    sudo bash ./kubo/install.sh
+    rm -rf kubo
+    
+    # Setup IPFS Path
+    sudo bash -c 'echo export IPFS_PATH=/data/ipfs >> /etc/profile' 
+    source /etc/profile
+    
+    # Setup IPFS Path
+    echo 'export IPFS_PATH=/data/ipfs' >> /home/ubuntu/.bash_profile
+    source /home/ubuntu/.bash_profile
+    
+    # Confirm IPFS Path and ensure ubuntu user home directories with its ownership
+    echo $IPFS_PATH > /tmp/IPFS_PATH.txt
+
+    # Create IPFS Data Directory with the define IPFS Path
+    # Set the correct ownership of the IPFS Data Directory
+    sudo mkdir -p $IPFS_PATH
+    sudo chown ubuntu:ubuntu $IPFS_PATH
+
+    # Initial IPFS as server
+    cd $IPFS_PATH
+    ipfs init -p server
+
+    # Configure IPFS Storage Size
+    ipfs config Datastore.StorageMax 8GB
+
+    # Configure IPFS to allow direct access to the instance's gateway
+    ipfs config Addresses.Gateway /ip4/0.0.0.0/tcp/8080
+
+    # Once again, set the correct ownership of the IPFS Data Directory
+    sudo chown -R ubuntu:ubuntu $IPFS_PATH
+
+    # Create IPFS Service
+    echo '[Unit]' | sudo tee /lib/systemd/system/ipfs.service
+    echo 'Description=ipfs daemon' | sudo tee -a /lib/systemd/system/ipfs.service
+    echo 'After=network.target' | sudo tee -a /lib/systemd/system/ipfs.service
+    echo '[Service]' | sudo tee -a /lib/systemd/system/ipfs.service
+    echo 'ExecStart=/usr/local/bin/ipfs daemon --enable-gc' | sudo tee -a /lib/systemd/system/ipfs.service
+    echo 'StandardOutput=journal' | sudo tee -a /lib/systemd/system/ipfs.service
+    echo 'KillSignal=SIGINT' | sudo tee -a /lib/systemd/system/ipfs.service
+    echo 'Restart=always' | sudo tee -a /lib/systemd/system/ipfs.service
+    echo 'User=ubuntu' | sudo tee -a /lib/systemd/system/ipfs.service
+    echo 'Group=ubuntu' | sudo tee -a /lib/systemd/system/ipfs.service
+    echo 'Environment="IPFS_PATH=/data/ipfs"' | sudo tee -a /lib/systemd/system/ipfs.service
+    echo '[Install]' | sudo tee -a /lib/systemd/system/ipfs.service
+    echo 'WantedBy=multi-user.target' | sudo tee -a /lib/systemd/system/ipfs.service
+
+    # Reload system service and enabled boot-start for IPFS
+    sudo systemctl daemon-reload
+    sudo systemctl enable ipfs.service
+    sudo systemctl start ipfs
+    sudo systemctl status ipfs
+    
+    # Check if IPFS is running and connected to peers
+    ipfs swarm peers
+    
+    set +x
+
+} 2>&1 | tee $(whoami)-script.log
+```
+
+<br>
+
+### Running Terraform
+
+After all the require files ready, we are good to proceed and run terraform.
+
+First, we run `terraform init`, to initialize the environment and download necessary terraform files and provider.
+
+Next, we can run `terraform fmt` to format correctly our `main.tf` and `terraform validate` to validate the code of `main.tf`
+
+Then, we run `terraform plan --out NAME.tfplan`. This will create terraform plan template for use to execute it, this is a good practice to prevent unintentional destroy or commit the code after changes.
+
+When everything is ready, we are good to execute the terraform plan by running the command `terraform apply "NAME.tfplan"`.
+
+![terraform-ipfs-aws-ec2-creation.gif](https://github.com/austin-lai/Setup-IPFS-and-Host-Simple-Benign-HTML-and-Executable/blob/master/terraform-ipfs-aws-ec2-creation.gif)
+
+Once terraform finish executed.
+
+We can check on AWS Console and we are ready to connect via SSH as shown below:
+
+![connect-to-aws-ec2-and-check-ipfs.gif](https://github.com/austin-lai/Setup-IPFS-and-Host-Simple-Benign-HTML-and-Executable/blob/master/connect-to-aws-ec2-and-check-ipfs.gif)
+
+If you want to terminated or destroy the EC2 Instance, you can run `terraform destroy`
+
+![terraform-destroy.gif](https://github.com/austin-lai/Setup-IPFS-and-Host-Simple-Benign-HTML-and-Executable/blob/master/terraform-destroy.gif)
 
 <br>
 
